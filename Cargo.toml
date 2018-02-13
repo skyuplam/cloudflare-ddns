@@ -1,0 +1,7 @@
+[package]
+name = "Cloudflare DDNS Updater"
+version = "0.1.0"
+authors = ["Terrence Lam <skyuplam@gmail.com>"]
+
+[dependencies]
+trust-dns-resolver = "^0.8"
