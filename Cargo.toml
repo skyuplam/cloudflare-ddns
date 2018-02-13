@@ -1,5 +1,5 @@
 [package]
-name = "Cloudflare DDNS Updater"
+name = "cloudflare_ddns"
 version = "0.1.0"
 authors = ["Terrence Lam <skyuplam@gmail.com>"]
 
