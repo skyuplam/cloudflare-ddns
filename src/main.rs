@@ -6,7 +6,7 @@ use trust_dns_resolver::config::*;
 
 
 fn main() {
-    // Construct a new Resolver with default configuration options
+    // Construct a new Resolver with opendns resolvers
     let opendns_ns1 = NameServerConfig {
         socket_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(208,67,222,222)), 53),
         protocol: Protocol::Udp,
@@ -33,5 +33,7 @@ fn main() {
     // There can be many addresses associated with the name,
     //  this can return IPv4 and/or IPv6 addresses
     let address = response.iter().next().expect("no addresses returned!");
+
+    // Print the output
     println!("Response: {}", address)
 }
