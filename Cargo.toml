@@ -5,3 +5,4 @@ authors = ["Terrence Lam <skyuplam@gmail.com>"]
 
 [dependencies]
 trust-dns-resolver = "^0.8"
+clap = "~2.30"

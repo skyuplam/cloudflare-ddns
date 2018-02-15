@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate clap;
 extern crate trust_dns_resolver;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -5,7 +7,7 @@ use trust_dns_resolver::Resolver;
 use trust_dns_resolver::config::*;
 
 
-fn main() {
+fn dig_ip() -> IpAddr {
     // Construct a new Resolver with opendns resolvers
     let opendns_ns1 = NameServerConfig {
         socket_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(208,67,222,222)), 53),
@@ -32,8 +34,28 @@ fn main() {
 
     // There can be many addresses associated with the name,
     //  this can return IPv4 and/or IPv6 addresses
-    let address = response.iter().next().expect("no addresses returned!");
+    response.iter().next().expect("no addresses returned!")
+}
 
+fn main() {
+    let matches = clap_app!(ddns =>
+        (version: "1.0")
+        (author: "Terrence Lam <skyuplam@gmail>")
+        (about: "Dynamically update DNS ip address")
+        (@arg EMAIL: -e --email +takes_value +required "Auth Email")
+        (@arg KEY: -k --key +takes_value +required "Auth Key")
+        (@arg TYPE: -t --type +takes_value +required "DNS record type, e.g. A")
+        (@arg NAME: -n --name +takes_value +required "DNS record name, e.g. example.com")
+        (@arg CONTENT: -c --content +takes_value +required "DNS record content, e.g. 127.0.0.1")
+        (@arg API_ENDPOINT: +required "API Endpoint for PUT DNS record")
+    ).get_matches();
+
+    let email = matches.value_of("EMAIL").unwrap();
+    let key = matches.value_of("KEY").unwrap();
+
+    println!("{}, {}", email, key);
+
+    let address = dig_ip();
     // Print the output
-    println!("Response: {}", address)
+    println!("IP Address: {}", address)
 }
