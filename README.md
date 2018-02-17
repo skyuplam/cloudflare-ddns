@@ -1,11 +1,21 @@
 # cloudflare_ddns
 Cloudflare DDNS
 
+# TODOs
+1. Logging
+2. Add config file
+
+# Getting start
+
 ## Cross Compile to `mipsel-unknown-linux-musl` for openwrt
 
 
-1. We need to know the triple for the target device, e.g. Asus RT-N56U router. According to the [Techdata](https://openwrt.org/toh/hwdata/asus/asus_rt-n56u_a1), the target should be `mipsel-unknown-linux-musl`.
-2. Download the [openwrt SDK](https://downloads.lede-project.org/releases/17.01.4/targets/ramips/rt3883/lede-sdk-17.01.4-ramips-rt3883_gcc-5.4.0_musl-1.1.16.Linux-x86_64.tar.xz), which can be found on [this page](https://downloads.lede-project.org/releases/17.01.4/targets/ramips/rt3883/) such that we can cross compile rust to openwrt.
+1. We need to know the triple for the target device, e.g. Asus RT-N56U router.
+According to the [Techdata](https://openwrt.org/toh/hwdata/asus/asus_rt-n56u_a1),
+the target should be `mipsel-unknown-linux-musl`.
+2. Download the [openwrt SDK](https://downloads.lede-project.org/releases/17.01.4/targets/ramips/rt3883/lede-sdk-17.01.4-ramips-rt3883_gcc-5.4.0_musl-1.1.16.Linux-x86_64.tar.xz),
+which can be found on [this page](https://downloads.lede-project.org/releases/17.01.4/targets/ramips/rt3883/)
+such that we can cross compile rust to openwrt.
 
 
 ```fish
@@ -38,5 +48,5 @@ set -x OPENSSL_INCLUDE_DIR /tmp/openssl-1.0.1t/include
 4. Compile the program
 
 ```fish
-env CC=mipsel-openwrt-linux-gcc LD=mipsel-openwrt-linux-ld LIBS=-ldl cargo build --target=mipsel-unknown-linux-musl
+env CC=mipsel-openwrt-linux-gcc LD=mipsel-openwrt-linux-ld cargo build --target=mipsel-unknown-linux-musl
 ```
