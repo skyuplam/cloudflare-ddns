@@ -66,7 +66,7 @@ fn main() {
     let key = matches.value_of("KEY").unwrap();
     let api_endpoint = matches.value_of("API_ENDPOINT").unwrap();
     let record_name = matches.value_of("NAME").unwrap();
-    let record_content = matches.value_of("CONTENT").unwrap_or("80.213.219.113");
+    // let record_content = matches.value_of("CONTENT").unwrap_or("80.213.219.113");
     let record_proxied = matches.is_present("PROXIED");
 
     // create a tokio event loop
@@ -76,10 +76,13 @@ fn main() {
         .connector(HttpsConnector::new(4, &handle).unwrap())
         .build(&handle);
 
+    // dig IP address
+    let address = dig_ip();
+
     let record = json!({
         "type": "A",
         "name": record_name,
-        "content": record_content,
+        "content": address,
         "proxied": record_proxied,
     });
 
@@ -101,15 +104,11 @@ fn main() {
                     e
                 )
             })?;
-            println!("Success {}, Message {}, Error {}", v["success"], v["messages"], v["errors"]);
+            println!("Success {}, Message {}, Error {}, Address: {}", v["success"], v["messages"], v["errors"], address);
             Ok(())
         })
     });
 
     // Execute the request with tokio event loop
     core.run(put).unwrap();
-
-    let address = dig_ip();
-    // Print the output
-    println!("IP Address: {}", address)
 }
