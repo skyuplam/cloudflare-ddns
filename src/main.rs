@@ -4,7 +4,7 @@ extern crate syslog;
 extern crate trust_dns_resolver;
 #[macro_use] extern crate clap;
 extern crate futures;
-extern crate hyper;
+#[macro_use] extern crate hyper;
 extern crate hyper_tls;
 extern crate tokio_core;
 #[macro_use] extern crate serde_json;
@@ -20,6 +20,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use trust_dns_resolver::Resolver;
 use trust_dns_resolver::config::*;
 
+
+header! { (XAuthEmail, "X-Auth-Email") => [String] }
+header! { (XAuthKey, "X-Auth-Key") => [String] }
 
 // Setup stdio and syslog logging
 fn setup_logger() -> Result<(), fern::InitError> {
@@ -128,8 +131,8 @@ fn main() {
             let uri = format!("{}/dns_records{}", api_endpoint, params);
             // Make a GET request
             let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
-            get_req.headers_mut().set_raw("X-Auth-Email", email);
-            get_req.headers_mut().set_raw("X-Auth-Key", key);
+            get_req.headers_mut().set(XAuthEmail(email.to_owned()));
+            get_req.headers_mut().set(XAuthKey(key.to_owned()));
 
             let get = client.request(get_req).and_then(|res| {
                 info!("List Response: {}", res.status());
@@ -156,8 +159,8 @@ fn main() {
             let record_id = get.value_of("RECORD_ID").unwrap();
             let uri = format!("{}/dns_records/{}", api_endpoint, record_id);
             let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
-            get_req.headers_mut().set_raw("X-Auth-Email", email);
-            get_req.headers_mut().set_raw("X-Auth-Key", key);
+            get_req.headers_mut().set(XAuthEmail(email.to_owned()));
+            get_req.headers_mut().set(XAuthKey(key.to_owned()));
             let get = client.request(get_req).and_then(|res| {
                 info!("Get Response: {}", res.status());
 
@@ -184,12 +187,10 @@ fn main() {
             let content = update.value_of("CONTENT").unwrap_or("");
             let uri = format!("{}/dns_records?name={}", api_endpoint, name);
             let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
-            get_req.headers_mut().set_raw("X-Auth-Email", email);
-            get_req.headers_mut().set_raw("X-Auth-Key", key);
+            get_req.headers_mut().set(XAuthEmail(email.to_owned()));
+            get_req.headers_mut().set(XAuthKey(key.to_owned()));
 
             let get = client.request(get_req).and_then(|res| {
-                info!("Get Response: {}", res.status());
-
                 res.body().concat2().and_then(move |body| {
                     let v: Value = serde_json::from_slice(&body).map_err(|e| {
                         io::Error::new(io::ErrorKind::Other, e)
@@ -200,17 +201,18 @@ fn main() {
                         panic!("Errors {}", v["errors"]);
                     }
                     let record_id = v["result"][0]["id"].as_str().unwrap();
-                    Ok(record_id.to_string())
+                    let record_content = v["result"][0]["content"].as_str().unwrap();
+                    Ok((record_id.to_string(), record_content.to_string()))
                 })
-            }).and_then(|record_id| {
-                // dig IP address
-                // let address = dig_ip();
-                let record_content = if content.is_empty() {
-                    dig_ip()
-                } else {
-                    content.parse().unwrap()
-                };
-
+            });
+            let (record_id, record_content) = core.run(get).unwrap();
+            let old_ip: IpAddr = record_content.parse().unwrap();
+            let record_content = if content.is_empty() {
+                dig_ip()
+            } else {
+                content.parse().unwrap()
+            };
+            if old_ip != record_content {
                 let record = json!({
                     "type": "A",
                     "name": name,
@@ -222,12 +224,12 @@ fn main() {
                 let uri = format!("{}/dns_records/{}", api_endpoint, record_id);
                 let mut put_req = Request::new(Method::Put, uri.parse().unwrap());
                 put_req.headers_mut().set(ContentType::json());
-                put_req.headers_mut().set_raw("X-Auth-Email", email);
-                put_req.headers_mut().set_raw("X-Auth-Key", key);
+                put_req.headers_mut().set(XAuthEmail(email.to_owned()));
+                put_req.headers_mut().set(XAuthKey(key.to_owned()));
                 put_req.headers_mut().set(ContentLength(record.to_string().len() as u64));
                 put_req.set_body(record.to_string());
 
-                client.request(put_req).and_then(|res| {
+                let put = client.request(put_req).and_then(|res| {
                     res.body().concat2().and_then(move |body| {
                         let v: Value = serde_json::from_slice(&body).map_err(|e| {
                             io::Error::new(io::ErrorKind::Other, e)
@@ -243,10 +245,11 @@ fn main() {
 
                         Ok(())
                     })
-                })
-            });
-
-            core.run(get).unwrap();
+                });
+                core.run(put).unwrap();
+            } else {
+                info!("Skipped, record is up to date!")
+            }
         },
         ("", None) => {
             info!("Please provide at least one of the following subcommands: list, get or update.");
