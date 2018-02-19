@@ -21,6 +21,7 @@ use trust_dns_resolver::Resolver;
 use trust_dns_resolver::config::*;
 
 
+// Setup stdio and syslog logging
 fn setup_logger() -> Result<(), fern::InitError> {
     fern::Dispatch::new()
         .chain(
@@ -45,6 +46,7 @@ fn setup_logger() -> Result<(), fern::InitError> {
     Ok(())
 }
 
+// Get IPv4 address by DNS lookup
 fn dig_ip() -> IpAddr {
     // Construct a new Resolver with opendns resolvers
     let opendns_ns1 = NameServerConfig {
@@ -78,7 +80,7 @@ fn main() {
     // Setup Logging
     setup_logger().unwrap();
 
-    // Parse cli arg opts
+    // Parse CLI arg opts
     let matches = clap_app!(ddns =>
         (version: crate_version!())
         (author: crate_authors!())
@@ -97,7 +99,7 @@ fn main() {
         (@subcommand update =>
             (about: "Update the DNS record with provided ID")
             (@arg NAME: +required "DNS record name, e.g. example.com")
-            (@arg CONTENT: -c --content +takes_value "DNS record content, e.g. 127.0.0.1")
+            (@arg CONTENT: -c --content +takes_value "DNS record content, e.g. 127.0.0.1. Use provided ip address ad the record content instead of looking up the client IP from DNS")
             (@arg PROXIED: -p --proxied "Whether the record is proxied to cloudflare")
         )
     ).get_matches();
@@ -106,7 +108,6 @@ fn main() {
     let key = matches.value_of("KEY").unwrap();
     let zone_id = matches.value_of("ZONE_ID").unwrap();
     let api_endpoint = format!("https://api.cloudflare.com/client/v4/zones/{}", zone_id);
-    // let record_proxied = matches.is_present("PROXIED");
 
     // create a tokio event loop
     let mut core = Core::new().unwrap();
@@ -115,120 +116,24 @@ fn main() {
         .connector(HttpsConnector::new(4, &handle).unwrap())
         .build(&handle);
 
-
-    // Handle list subcommand
-    if let Some(list) = matches.subcommand_matches("list") {
-        let name = list.value_of("NAME").unwrap_or("");
-        let params = if name.is_empty() {
-            format!("")
-        } else {
-            format!("?name={}", name)
-        };
-        let uri = format!("{}/dns_records{}", api_endpoint, params);
-        // Make a GET request
-        let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
-        get_req.headers_mut().set_raw("X-Auth-Email", email);
-        get_req.headers_mut().set_raw("X-Auth-Key", key);
-
-        let get = client.request(get_req).and_then(|res| {
-            info!("List Response: {}", res.status());
-
-            res.body().concat2().and_then(move |body| {
-                let v: Value = serde_json::from_slice(&body).map_err(|e| {
-                    io::Error::new(io::ErrorKind::Other, e)
-                })?;
-
-                if let Some(success) = v["success"].as_bool() {
-                    if !success {
-                        error!("Errors {}", v["errors"]);
-                    }
-                    info!("Result {}", v["result"]);
-                }
-
-                Ok(())
-            })
-        });
-        core.run(get).unwrap();
-    }
-
-    // Handle get subcommand
-    if let Some(get) = matches.subcommand_matches("get") {
-        let record_id = get.value_of("RECORD_ID").unwrap();
-        let uri = format!("{}/dns_records/{}", api_endpoint, record_id);
-        let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
-        get_req.headers_mut().set_raw("X-Auth-Email", email);
-        get_req.headers_mut().set_raw("X-Auth-Key", key);
-        let get = client.request(get_req).and_then(|res| {
-            info!("Get Response: {}", res.status());
-
-            res.body().concat2().and_then(move |body| {
-                let v: Value = serde_json::from_slice(&body).map_err(|e| {
-                    io::Error::new(io::ErrorKind::Other, e)
-                })?;
-
-                if let Some(success) = v["success"].as_bool() {
-                    if !success {
-                        error!("Errors {}", v["errors"]);
-                    }
-                    info!("Result {}", v["result"]);
-                }
-
-                Ok(())
-            })
-        });
-        core.run(get).unwrap();
-    }
-
-    // Handle update subcommand
-    if let Some(update) = matches.subcommand_matches("update") {
-        let name = update.value_of("NAME").unwrap();
-        let content = update.value_of("CONTENT").unwrap_or("");
-        let uri = format!("{}/dns_records?name={}", api_endpoint, name);
-        let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
-        get_req.headers_mut().set_raw("X-Auth-Email", email);
-        get_req.headers_mut().set_raw("X-Auth-Key", key);
-
-        let get = client.request(get_req).and_then(|res| {
-            info!("Get Response: {}", res.status());
-
-            res.body().concat2().and_then(move |body| {
-                let v: Value = serde_json::from_slice(&body).map_err(|e| {
-                    io::Error::new(io::ErrorKind::Other, e)
-                })?;
-
-                let success = v["success"].as_bool().unwrap();
-                if !success {
-                    panic!("Errors {}", v["errors"]);
-                }
-                let record_id = v["result"][0]["id"].as_str().unwrap();
-                Ok(record_id.to_string())
-            })
-        }).and_then(|record_id| {
-            // dig IP address
-            // let address = dig_ip();
-            let record_content = if content.is_empty() {
-                dig_ip()
+    match matches.subcommand() {
+        // Handle list subcommand
+        ("list", Some(list)) => {
+            let name = list.value_of("NAME").unwrap_or("");
+            let params = if name.is_empty() {
+                format!("")
             } else {
-                content.parse().unwrap()
+                format!("?name={}", name)
             };
+            let uri = format!("{}/dns_records{}", api_endpoint, params);
+            // Make a GET request
+            let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
+            get_req.headers_mut().set_raw("X-Auth-Email", email);
+            get_req.headers_mut().set_raw("X-Auth-Key", key);
 
-            let record = json!({
-                "type": "A",
-                "name": name,
-                "content": record_content,
-                "proxied": update.is_present("PROXIED"),
-            });
+            let get = client.request(get_req).and_then(|res| {
+                info!("List Response: {}", res.status());
 
-            // Make a PUT request
-            let uri = format!("{}/dns_records/{}", api_endpoint, record_id);
-            let mut put_req = Request::new(Method::Put, uri.parse().unwrap());
-            put_req.headers_mut().set(ContentType::json());
-            put_req.headers_mut().set_raw("X-Auth-Email", email);
-            put_req.headers_mut().set_raw("X-Auth-Key", key);
-            put_req.headers_mut().set(ContentLength(record.to_string().len() as u64));
-            put_req.set_body(record.to_string());
-
-            client.request(put_req).and_then(|res| {
                 res.body().concat2().and_then(move |body| {
                     let v: Value = serde_json::from_slice(&body).map_err(|e| {
                         io::Error::new(io::ErrorKind::Other, e)
@@ -237,16 +142,115 @@ fn main() {
                     if let Some(success) = v["success"].as_bool() {
                         if !success {
                             error!("Errors {}", v["errors"]);
-                        } else {
-                            info!("Result {}", v["result"]);
                         }
+                        info!("Result {}", v["result"]);
                     }
 
                     Ok(())
                 })
-            })
-        });
+            });
+            core.run(get).unwrap();
+        },
+        // Handle get subcommand
+        ("get", Some(get)) => {
+            let record_id = get.value_of("RECORD_ID").unwrap();
+            let uri = format!("{}/dns_records/{}", api_endpoint, record_id);
+            let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
+            get_req.headers_mut().set_raw("X-Auth-Email", email);
+            get_req.headers_mut().set_raw("X-Auth-Key", key);
+            let get = client.request(get_req).and_then(|res| {
+                info!("Get Response: {}", res.status());
 
-        core.run(get).unwrap();
+                res.body().concat2().and_then(move |body| {
+                    let v: Value = serde_json::from_slice(&body).map_err(|e| {
+                        io::Error::new(io::ErrorKind::Other, e)
+                    })?;
+
+                    if let Some(success) = v["success"].as_bool() {
+                        if !success {
+                            error!("Errors {}", v["errors"]);
+                        }
+                        info!("Result {}", v["result"]);
+                    }
+
+                    Ok(())
+                })
+            });
+            core.run(get).unwrap();
+        },
+        // Handle update subcommand
+        ("update", Some(update)) => {
+            let name = update.value_of("NAME").unwrap();
+            let content = update.value_of("CONTENT").unwrap_or("");
+            let uri = format!("{}/dns_records?name={}", api_endpoint, name);
+            let mut get_req = Request::new(Method::Get, uri.parse().unwrap());
+            get_req.headers_mut().set_raw("X-Auth-Email", email);
+            get_req.headers_mut().set_raw("X-Auth-Key", key);
+
+            let get = client.request(get_req).and_then(|res| {
+                info!("Get Response: {}", res.status());
+
+                res.body().concat2().and_then(move |body| {
+                    let v: Value = serde_json::from_slice(&body).map_err(|e| {
+                        io::Error::new(io::ErrorKind::Other, e)
+                    })?;
+
+                    let success = v["success"].as_bool().unwrap();
+                    if !success {
+                        panic!("Errors {}", v["errors"]);
+                    }
+                    let record_id = v["result"][0]["id"].as_str().unwrap();
+                    Ok(record_id.to_string())
+                })
+            }).and_then(|record_id| {
+                // dig IP address
+                // let address = dig_ip();
+                let record_content = if content.is_empty() {
+                    dig_ip()
+                } else {
+                    content.parse().unwrap()
+                };
+
+                let record = json!({
+                    "type": "A",
+                    "name": name,
+                    "content": record_content,
+                    "proxied": update.is_present("PROXIED"),
+                });
+
+                // Make a PUT request
+                let uri = format!("{}/dns_records/{}", api_endpoint, record_id);
+                let mut put_req = Request::new(Method::Put, uri.parse().unwrap());
+                put_req.headers_mut().set(ContentType::json());
+                put_req.headers_mut().set_raw("X-Auth-Email", email);
+                put_req.headers_mut().set_raw("X-Auth-Key", key);
+                put_req.headers_mut().set(ContentLength(record.to_string().len() as u64));
+                put_req.set_body(record.to_string());
+
+                client.request(put_req).and_then(|res| {
+                    res.body().concat2().and_then(move |body| {
+                        let v: Value = serde_json::from_slice(&body).map_err(|e| {
+                            io::Error::new(io::ErrorKind::Other, e)
+                        })?;
+
+                        if let Some(success) = v["success"].as_bool() {
+                            if !success {
+                                error!("Errors {}", v["errors"]);
+                            } else {
+                                info!("Result {}", v["result"]);
+                            }
+                        }
+
+                        Ok(())
+                    })
+                })
+            });
+
+            core.run(get).unwrap();
+        },
+        ("", None) => {
+            info!("Please provide at least one of the following subcommands: list, get or update.");
+        },
+        _ => unreachable!(),
     }
 }
