@@ -4,6 +4,7 @@ version = "0.3.0"
 authors = ["Terrence Lam <skyuplam@gmail.com>"]
 
 [dependencies]
+openssl-probe = "0.1.2"
 trust-dns-resolver = "^0.8"
 clap = "~2.30"
 futures = "^0.1"

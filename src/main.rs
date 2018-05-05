@@ -10,6 +10,7 @@ extern crate tokio_core;
 #[macro_use] extern crate serde_derive;
 extern crate serde;
 #[macro_use] extern crate serde_json;
+extern crate openssl_probe;
 
 use std::io;
 use std::error::Error;
@@ -35,7 +36,7 @@ fn setup_logger() -> Result<(), fern::InitError> {
         .chain(
             // Console config
             fern::Dispatch::new()
-                .level(log::LevelFilter::Debug)
+                .level(log::LevelFilter::Info)
                 .format(move |out, message, record| {
                     out.finish(format_args!(
                         "[{}] {}",
@@ -48,7 +49,7 @@ fn setup_logger() -> Result<(), fern::InitError> {
             // Syslog config
             fern::Dispatch::new()
                 .level(log::LevelFilter::Info)
-                .level_for("syslog", log::LevelFilter::Debug)
+                .level_for("syslog", log::LevelFilter::Info)
                 .chain(syslog::unix(syslog::Facility::LOG_USER)?)
         ).apply()?;
     Ok(())
@@ -100,8 +101,12 @@ fn read_config_from_file<P: AsRef<Path>>(path: P) -> Result<Config, Box<Error>> 
 }
 
 fn main() {
+
     // Setup Logging
     setup_logger().unwrap();
+
+    // Setup SSL
+    openssl_probe::init_ssl_cert_env_vars();
 
     // Parse CLI arg opts
     let matches = clap_app!(ddns =>
