@@ -48,16 +48,47 @@ set -x OPENSSL_INCLUDE_DIR /tmp/openssl-1.0.1t/include
 env CC=mipsel-openwrt-linux-gcc LD=mipsel-openwrt-linux-ld cargo build --target=mipsel-unknown-linux-musl
 ```
 
+### Cross compile to `x86_64-unknown-linux-musl`
+
+Use docker to cross compile to `x86_64-unknown-linux-musl`
+
+```fish
+docker pull skyuplam/muslrust:latest
+docker rum --rm -ti -v (pwd):/home/rust skyuplam/muslrust:latest cargo build --release
+```
+
 ## Usages
 Type `--help` for more info
 
+```
+ddns --help
+```
+
+### Configuration file
+
+You need to provide a config file in JSON format as the following.
+```
+{
+  "email": "abc@email.com",
+  "key": "This is your Cloudflare API key",
+  "zoneid": "Your Cloudflare Zone ID"
+}
+```
+
+### Examples
 
 ```sh
-ddns --email=abc@example.com --key=abc --zone_id=zone123 list <record_name>
-ddns --email=abc@example.com --key=abc --zone_id=zone123 get [record_id]
-ddns --email=abc@example.com --key=abc --zone_id=zone123 update [record_name]
+ddns --config config.json list <record_name>
+ddns --config config.json get [record_id]
+ddns --config config.json update [record_name]
+```
+
+### Setup a cron job for constant update your IP
+
+```
 ```
 
 ## Tested device
 
 + Asus RT-N56U with OpenWrt v17.01.4
++ PCEngines APU2 - Debian Stretch

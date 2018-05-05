@@ -7,9 +7,14 @@ extern crate futures;
 #[macro_use] extern crate hyper;
 extern crate hyper_tls;
 extern crate tokio_core;
+#[macro_use] extern crate serde_derive;
+extern crate serde;
 #[macro_use] extern crate serde_json;
 
 use std::io;
+use std::error::Error;
+use std::fs::File;
+use std::path::Path;
 use futures::{Future, Stream};
 use hyper::{Client, Request, Method};
 use hyper::header::{ContentLength, ContentType};
@@ -79,6 +84,21 @@ fn dig_ip() -> IpAddr {
     response.iter().next().expect("no addresses returned!")
 }
 
+#[derive(Deserialize, Debug)]
+struct Config {
+    email: String,
+    key: String,
+    zoneid: String,
+}
+
+fn read_config_from_file<P: AsRef<Path>>(path: P) -> Result<Config, Box<Error>> {
+    let file = File::open(path)?;
+
+    let config = serde_json::from_reader(file)?;
+
+    Ok(config)
+}
+
 fn main() {
     // Setup Logging
     setup_logger().unwrap();
@@ -88,9 +108,10 @@ fn main() {
         (version: crate_version!())
         (author: crate_authors!())
         (about: "Dynamically update DNS ip address")
-        (@arg EMAIL: -e --email +takes_value +required "Auth Email")
-        (@arg KEY: -k --key +takes_value +required "Auth Key")
-        (@arg ZONE_ID: -z --zoon_id +takes_value +required "Zone ID")
+        (@arg CONFIG: -c --config +takes_value +required "Config file location in JSON format")
+        // (@arg EMAIL: -e --email +takes_value +required "Auth Email")
+        // (@arg KEY: -k --key +takes_value +required "Auth Key")
+        // (@arg ZONE_ID: -z --zoon_id +takes_value +required "Zone ID")
         (@subcommand list =>
             (about: "List all DNS records in the Zone")
             (@arg NAME: "DNS record name, e.g. example.com")
@@ -107,10 +128,12 @@ fn main() {
         )
     ).get_matches();
 
-    let email = matches.value_of("EMAIL").unwrap();
-    let key = matches.value_of("KEY").unwrap();
-    let zone_id = matches.value_of("ZONE_ID").unwrap();
-    let api_endpoint = format!("https://api.cloudflare.com/client/v4/zones/{}", zone_id);
+    let config_path = matches.value_of("CONFIG").unwrap();
+    let config: Config = read_config_from_file(config_path).unwrap();
+
+    let email = config.email;
+    let key = config.key;
+    let api_endpoint = format!("https://api.cloudflare.com/client/v4/zones/{}", config.zoneid);
 
     // create a tokio event loop
     let mut core = Core::new().unwrap();
