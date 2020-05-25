@@ -8,6 +8,7 @@ use trust_dns_client::rr::{DNSClass, Name, RData, RecordType};
 use trust_dns_client::udp::UdpClientStream;
 
 use clap::{clap_app, crate_authors, crate_description, crate_name, crate_version};
+use serde::Deserialize;
 
 // https://api.cloudflare.com/
 const API_ENDPOINT: &str = "https://api.cloudflare.com/client/v4";
@@ -54,6 +55,37 @@ async fn dig() -> Result<String, Box<dyn std::error::Error>> {
     Ok(record)
 }
 
+
+#[derive(Deserialize, Debug)]
+struct DNSRecord {
+    id: String,
+    #[serde(rename="type")]
+    record_type: String,
+    name: String,
+    content: String,
+    proxiable: bool,
+    proxied: bool,
+    ttl: u8,
+    locked: bool,
+    zone_id: String,
+    zone_name: String,
+    created_on: String,
+    modified_on: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct RequestError {
+    code: String,
+    message: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ListResponse {
+    success: bool,
+    result: Option<Vec<DNSRecord>>,
+    errors: Vec<RequestError>
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ip_addr = dig().await?;
@@ -63,22 +95,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (version: crate_version!())
         (author: crate_authors!())
         (about: crate_description!())
-        (@arg API_KEY: --api_key +takes_value +required env("DDNS_API_KEY") "API key generated on the 'My Account' page")
-        (@arg EMAIL: --email +takes_value +required env("DDNS_EMAIL") "Email address associated with your account")
-        (@arg USER_SERVICE_KEY:
-            --service_key
-            +takes_value
+        (@arg API_TOKEN:
+            --api_token +takes_value
             +required
-            env("DDNS_SERVICE_KEY")
-            "A special Cloudflare API key good for a restricted set of endpoints. Always begins with 'v1.0-', may vary in length."
+            env("DDNS_API_TOKEN")
+            "API Token generated from the User Profile 'API Tokens' page"
         )
-        (@arg ZONE_ID: --zone +takes_value +required env("DDNS_ZONE") "Zone Identifier")
+        (@arg ZONE: --zone +takes_value +required env("DDNS_ZONE") "Zone Identifier")
         (@arg NAME: +required "DNS record name")
     )
     .get_matches();
 
-    let api_key = matches.value_of("API_KEY").unwrap();
-    println!("{}", api_key);
+    // Get the required parameters from cli
+    let api_token = matches.value_of("API_TOKEN").unwrap();
+    let zone = matches.value_of("ZONE").unwrap();
+    let name = matches.value_of("NAME").unwrap();
+
+    let dns_records_endpoint = format!("{}/zones/{}/dns_records", API_ENDPOINT, zone);
+
+    let res = reqwest::Client::new()
+        .get(dns_records_endpoint.as_str())
+        .header("Authorization", format!("Bearer {}", api_token))
+        .header("Content-Type", "application/json")
+        .query(&[("name", name)])
+        .send()
+        .await?
+        .json::<ListResponse>()
+        .await?;
+
+    println!("{:#?}", res);
 
     Ok(())
 }
