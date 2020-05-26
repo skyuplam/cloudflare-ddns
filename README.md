@@ -4,15 +4,14 @@
 
 ### Cross Compile to `mipsel-unknown-linux-musl` for openwrt
 
-
 1. We need to know the triple for the target device, e.g. Asus RT-N56U router.
-According to the [Techdata](https://openwrt.org/toh/hwdata/asus/asus_rt-n56u_a1),
-the target should be `mipsel-unknown-linux-musl`.
+   According to the [Techdata](https://openwrt.org/toh/hwdata/asus/asus_rt-n56u_a1),
+   the target should be `mipsel-unknown-linux-musl`.
 2. Download the [openwrt SDK](https://downloads.lede-project.org/releases/17.01.4/targets/ramips/rt3883/lede-sdk-17.01.4-ramips-rt3883_gcc-5.4.0_musl-1.1.16.Linux-x86_64.tar.xz),
-which can be found on [this page](https://downloads.lede-project.org/releases/17.01.4/targets/ramips/rt3883/)
-such that we can cross compile rust to openwrt. We have to set the path to the
-toolchains folder as an environment var `$STAGING_DIR`, and set the bin folder under the
-toolchains into `$PATH`.
+   which can be found on [this page](https://downloads.lede-project.org/releases/17.01.4/targets/ramips/rt3883/)
+   such that we can cross compile rust to openwrt. We have to set the path to the
+   toolchains folder as an environment var `$STAGING_DIR`, and set the bin folder under the
+   toolchains into `$PATH`.
 
 ```fish
 cd /tmp
@@ -58,37 +57,27 @@ docker rum --rm -ti -v (pwd):/home/rust skyuplam/muslrust:latest cargo build --r
 ```
 
 ## Usages
+
 Type `--help` for more info
 
-```
+```sh
 ddns --help
-```
-
-### Configuration file
-
-You need to provide a config file in JSON format as the following.
-```
-{
-  "email": "abc@email.com",
-  "key": "This is your Cloudflare API key",
-  "zoneid": "Your Cloudflare Zone ID"
-}
 ```
 
 ### Examples
 
-```sh
-ddns --config config.json list <record_name>
-ddns --config config.json get [record_id]
-ddns --config config.json update [record_name]
+```zsh
+# To update www.doamin.com to point to your current machine's external IP
+env DDNS_API_TOKEN=123444oijoij DDNS_ZONE=09s9080f980s ddns www.domain.com
 ```
 
 ### Setup a cron job for constant update your IP
 
 ```
+
 ```
 
 ## Tested device
 
-+ Asus RT-N56U with OpenWrt v17.01.4
-+ PCEngines APU2 - Debian Stretch
+- Asus RT-N56U with OpenWrt v17.01.4
+- PCEngines APU2 - Debian Stretch
