@@ -143,9 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     [] => println!("Record \"{}\" not found!", name),
                     [record, ..] => {
                         let current_ip = dig().await?;
-                        if current_ip == record.content {
-                            println!("Same IP, do nothing!");
-                        } else {
+                        if current_ip != record.content {
                             let new_record = DNSUpdateRecord {
                                 record_type: record.record_type.clone(),
                                 name: record.name.clone(),
