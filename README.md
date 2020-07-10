@@ -2,6 +2,22 @@
 
 ## Getting start
 
+### Cross compile to `x86_64-unknown-linux-musl`
+
+Use docker to cross compile to `x86_64-unknown-linux-musl`
+
+Here I am using my [rust-musl](https://github.com/skyuplam/rust-musl) docker
+image to cross compile.
+
+```zsh
+$ docker pull skyuplam/rust-musl-armhf:x86_64-unknown-linux-musl
+$ docker run --rm \
+  --volume $(pwd):/home/cross/project \
+  --volume ~/.cargo/registry:/home/cross/.cargo/registry \
+  skyuplam/rust-musl-armhf:x86_64-unknown-linux-musl \
+  cargo build --release
+```
+
 ### Cross Compile to `mipsel-unknown-linux-musl` for openwrt
 
 1. We need to know the triple for the target device, e.g. Asus RT-N56U router.
@@ -47,15 +63,6 @@ set -x OPENSSL_INCLUDE_DIR /tmp/openssl-1.0.1t/include
 env CC=mipsel-openwrt-linux-gcc LD=mipsel-openwrt-linux-ld cargo build --target=mipsel-unknown-linux-musl
 ```
 
-### Cross compile to `x86_64-unknown-linux-musl`
-
-Use docker to cross compile to `x86_64-unknown-linux-musl`
-
-```fish
-docker pull skyuplam/muslrust:latest
-docker rum --rm -ti -v (pwd):/home/rust skyuplam/muslrust:latest cargo build --release
-```
-
 ## Usages
 
 Type `--help` for more info
@@ -69,12 +76,6 @@ ddns --help
 ```zsh
 # To update www.doamin.com to point to your current machine's external IP
 env DDNS_API_TOKEN=123444oijoij DDNS_ZONE=09s9080f980s ddns www.domain.com
-```
-
-### Setup a cron job for constant update your IP
-
-```
-
 ```
 
 ## Tested device
